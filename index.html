@@ -1,22 +1,73 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mobile Image Trace</title>
-<link rel="stylesheet" href="style.css">
-<script src="https://unpkg.com/imagetracerjs@1.2.7/imagetracer_v1.2.7.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mobile Image Trace</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<div class="container">
-  <h2>Mobile Image Trace</h2>
-  <input type="file" id="upload" accept="image/*"><br><br>
-  <button class="btn-primary" onclick="traceImage()">Trace Image</button>
-  <button class="btn-secondary" onclick="downloadSVG()">Download SVG</button>
-  <div class="preview" id="imagePreview">No image selected</div>
-  <div class="preview" id="svgPreview">No SVG generated</div>
-  <textarea id="svgCode" readonly></textarea>
-</div>
-<script src="script.js"></script>
+  <div id="app">
+    <header>
+      <h1>Mobile Image Trace</h1>
+      <small>Client-side SVG tracing (no upload)</small>
+    </header>
+
+    <div
+      id="dropzone"
+      ondragover="event.preventDefault()"
+      ondrop="handleDrop(event)"
+    >
+      <input type="file" id="fileinput" accept="image/*" onchange="handleFile(event)" hidden />
+      <button onclick="document.getElementById('fileinput').click()">
+        Choose Image
+      </button>
+      <p>or drag & drop an image here</p>
+      <p id="error" class="error"></p>
+      <p id="loading" class="loading"></p>
+    </div>
+
+    <section id="controls">
+      <label>
+        Mode:
+        <select id="mode" onchange="runTrace()">
+          <option value="posterized">Posterized</option>
+          <option value="color">Color</option>
+          <option value="grayscale">Grayscale</option>
+        </select>
+      </label>
+      <label>
+        Colors: <span id="colorsVal">8</span>
+        <input type="range" id="colors" min="2" max="32" value="8" onchange="updateVal(this)" />
+      </label>
+      <label>
+        Turd size: <span id="turdVal">10</span>
+        <input type="range" id="turdSize" min="0" max="200" value="10" onchange="updateVal(this)" />
+      </label>
+      <label>
+        Stroke width: <span id="strokeVal">1</span>
+        <input type="range" id="strokeWidth" min="0" max="10" step="0.5" value="1" onchange="updateVal(this)" />
+      </label>
+    </section>
+
+    <section id="results">
+      <div class="box">
+        <h3>Input</h3>
+        <div id="inputPreview" class="preview">No image yet</div>
+      </div>
+
+      <div class="box">
+        <h3>SVG Output</h3>
+        <div id="svgOutput" class="preview">No SVG yet</div>
+        <div id="svgActions" style="display:none;">
+          <button onclick="downloadSvg()">Download SVG</button>
+          <button onclick="copySvg()">Copy SVG</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://unpkg.com/imagetracerjs@1.2.7/imagetracer_v1.2.7.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
