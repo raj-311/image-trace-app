@@ -3,53 +3,169 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Simple Image Trace</title>
+<title>Basic Image Trace + SVG Editor</title>
 <style>
-  body { font-family: Arial, sans-serif; padding: 1rem; max-width: 600px; margin: auto; }
-  #inputPreview, #svgOutput { border: 1px solid #ccc; height: 200px; margin-top: 1rem; display: flex; justify-content: center; align-items: center; }
-  #svgOutput svg { width: 100%; height: 100%; }
-  button { margin-top: 1rem; padding: 0.5rem 1rem; }
+  body { font-family: Arial, sans-serif; background: #f0f0f0; margin:0; padding:20px; }
+  h1 { text-align: center; }
+  #container { max-width: 900px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);}
+  #upload-area { border: 2px dashed #888; padding: 20px; text-align:center; cursor:pointer; color:#555; }
+  #upload-area:hover { background: #e0e0e0; }
+  #input-file { display:none; }
+  #svg-preview { margin-top: 20px; border: 1px solid #ddd; min-height: 300px; background: #fff; overflow: auto; }
+  #controls { margin-top: 20px; display:flex; justify-content: center; gap:10px; flex-wrap: wrap; }
+  button { padding: 10px 20px; background: #0077ff; color:#fff; border:none; border-radius: 4px; cursor:pointer; }
+  button:disabled { background: #aaa; cursor: not-allowed; }
+  #error-msg { color: red; text-align: center; margin-top: 10px; }
+  svg path { cursor:pointer; }
+  svg path.selected { stroke: orange !important; stroke-width: 3 !important; }
 </style>
 </head>
 <body>
-  <h1>Simple Image Trace</h1>
-  <input type="file" id="fileinput" accept="image/*" />
-  <div id="inputPreview">No image yet</div>
-  <div id="svgOutput">No SVG yet</div>
+  <div id="container">
+    <h1>Basic Image Trace + SVG Editor</h1>
+    <div id="upload-area">Click or Drag & Drop Image Here to Upload</div>
+    <input type="file" id="input-file" accept="image/*" />
+    <div id="error-msg"></div>
+    <div id="svg-preview"></div>
+    <div id="controls">
+      <button id="trace-btn" disabled>Trace Image</button>
+      <button id="clear-btn" disabled>Clear</button>
+      <button id="download-btn" disabled>Download SVG</button>
+      <button id="color-btn" disabled>Change Color</button>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/imagetracerjs@1.2.7/imagetracer_v1.2.7.js"></script>
   <script>
-    const input = document.getElementById('fileinput');
-    const inputPreview = document.getElementById('inputPreview');
-    const svgOutput = document.getElementById('svgOutput');
+    const uploadArea = document.getElementById('upload-area');
+    const inputFile = document.getElementById('input-file');
+    const errorMsg = document.getElementById('error-msg');
+    const svgPreview = document.getElementById('svg-preview');
+    const traceBtn = document.getElementById('trace-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const downloadBtn = document.getElementById('download-btn');
+    const colorBtn = document.getElementById('color-btn');
 
-    input.addEventListener('change', e => {
-      const file = e.target.files[0];
-      if (!file || !file.type.startsWith('image/')) {
-        alert('Please upload an image file.');
+    let uploadedImageDataUrl = null;
+    let currentSVG = null;
+    let selectedPath = null;
+
+    // Upload area click triggers file input
+    uploadArea.addEventListener('click', () => inputFile.click());
+
+    // Drag & Drop handlers
+    uploadArea.addEventListener('dragover', e => e.preventDefault());
+    uploadArea.addEventListener('drop', e => {
+      e.preventDefault();
+      const dt = e.dataTransfer;
+      if (dt.files && dt.files.length) {
+        handleFile(dt.files[0]);
+      }
+    });
+
+    // File input change handler
+    inputFile.addEventListener('change', e => {
+      if (e.target.files.length) {
+        handleFile(e.target.files[0]);
+      }
+    });
+
+    function handleFile(file) {
+      errorMsg.textContent = "";
+      if (!file.type.startsWith('image/')) {
+        errorMsg.textContent = "Please upload a valid image file.";
         return;
       }
-
       const reader = new FileReader();
-      reader.onload = function(evt) {
-        const imgSrc = evt.target.result;
-        inputPreview.innerHTML = `<img src="${imgSrc}" style="max-width:100%; max-height:100%;">`;
-
-        if(typeof ImageTracer === 'undefined') {
-          alert('ImageTracer library failed to load.');
-          return;
-        }
-
-        ImageTracer.imageToSVG(imgSrc, function(svgstr) {
-          svgOutput.innerHTML = svgstr;
-        }, {
-          numberofcolors: 8,
-          turdsize: 10,
-          strokewidth: 1,
-          mode: 'posterized'
-        });
+      reader.onload = e => {
+        uploadedImageDataUrl = e.target.result;
+        traceBtn.disabled = false;
+        clearBtn.disabled = false;
+        downloadBtn.disabled = true;
+        colorBtn.disabled = true;
+        svgPreview.innerHTML = '<img src="' + uploadedImageDataUrl + '" style="max-width:100%; max-height:300px;" alt="Uploaded Image"/>';
       };
       reader.readAsDataURL(file);
+    }
+
+    // Trace button click handler
+    traceBtn.addEventListener('click', () => {
+      if (!uploadedImageDataUrl) return;
+      errorMsg.textContent = "Tracing image... please wait.";
+      traceBtn.disabled = true;
+      ImageTracer.imageToSVG(uploadedImageDataUrl, function(svgstr){
+        errorMsg.textContent = "";
+        svgPreview.innerHTML = svgstr;
+        currentSVG = svgPreview.querySelector('svg');
+        if (!currentSVG) {
+          errorMsg.textContent = "Tracing failed. No SVG output.";
+          traceBtn.disabled = false;
+          return;
+        }
+        enableEditing();
+      }, {
+        numberofcolors: 16,
+        strokewidth: 1,
+        scale: 1,
+        turdsize: 10
+      });
+    });
+
+    function enableEditing(){
+      traceBtn.disabled = true;
+      downloadBtn.disabled = false;
+      colorBtn.disabled = false;
+      // Make paths clickable/selectable
+      const paths = currentSVG.querySelectorAll('path');
+      paths.forEach(p => {
+        p.style.cursor = 'pointer';
+        p.addEventListener('click', () => {
+          if (selectedPath) selectedPath.classList.remove('selected');
+          selectedPath = p;
+          p.classList.add('selected');
+        });
+      });
+    }
+
+    // Clear button clears everything
+    clearBtn.addEventListener('click', () => {
+      uploadedImageDataUrl = null;
+      currentSVG = null;
+      selectedPath = null;
+      svgPreview.innerHTML = '';
+      errorMsg.textContent = '';
+      traceBtn.disabled = true;
+      clearBtn.disabled = true;
+      downloadBtn.disabled = true;
+      colorBtn.disabled = true;
+    });
+
+    // Download button downloads current SVG
+    downloadBtn.addEventListener('click', () => {
+      if (!currentSVG) return;
+      const svgData = currentSVG.outerHTML;
+      const blob = new Blob([svgData], {type:"image/svg+xml;charset=utf-8"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'traced_image.svg';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    // Change color of selected path randomly
+    colorBtn.addEventListener('click', () => {
+      if (!selectedPath) {
+        alert('Please select a path first by clicking on it.');
+        return;
+      }
+      // Generate random color
+      const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6,'0');
+      selectedPath.setAttribute('fill', randomColor);
+      // Remove stroke for better visibility
+      selectedPath.setAttribute('stroke', 'none');
     });
   </script>
 </body>
