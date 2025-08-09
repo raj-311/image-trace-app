@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mobile Image Trace</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/imagetracerjs@1.2.7/imagetracer_v1.2.7.js"></script>
+</head>
+<body>
+<div class="container">
+  <h2>Mobile Image Trace</h2>
+  <input type="file" id="upload" accept="image/*"><br><br>
+  <button class="btn-primary" onclick="traceImage()">Trace Image</button>
+  <button class="btn-secondary" onclick="downloadSVG()">Download SVG</button>
+  <div class="preview" id="imagePreview">No image selected</div>
+  <div class="preview" id="svgPreview">No SVG generated</div>
+  <textarea id="svgCode" readonly></textarea>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
