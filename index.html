@@ -265,6 +265,632 @@
     cursor: pointer;
   }
 
+  @media (max-width: 768px) {
+    .container {
+      padding: 20px;
+    }
+    
+    .preview-container {
+      grid-template-columns: 1fr;
+    }
+    
+    .btn-group {
+      flex-direction: column;
+    }
+    
+    .btn {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 1s ease-in-out infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+<div class="container">
+  <h1><i class="fas fa-vector-square"></i> Professional Image to SVG Converter</h1>
+  
+  <div class="upload-area" id="uploadArea">
+    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+    <i class="fas fa-cloud-upload-alt" style="font-size: 48px; color: var(--primary);"></i>
+    <p>Click to upload an image (JPG, PNG, GIF, etc.)</p>
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="colors"><i class="fas fa-palette"></i> Color Reduction</label>
+      <input type="range" id="colors" min="2" max="64" value="16">
+      <span id="colorsValue" class="value-display">16</span>
+    </div>
+    
+    <div class="control-group">
+      <label for="smoothness"><i class="fas fa-bezier-curve"></i> Smoothness</label>
+      <input type="range" id="smoothness" min="0.1" max="2" step="0.1" value="1.0">
+      <span id="smoothnessValue" class="value-display">1.0</span>
+    </div>
+    
+    <div class="control-group">
+      <label for="detail"><i class="fas fa-search-plus"></i> Detail Level</label>
+      <input type="range" id="detail" min="1" max="50" value="20">
+      <span id="detailValue" class="value-display">20</span>
+    </div>
+  </div>
+
+  <div id="progress-container">
+    <div class="progress-info">
+      <span id="progressText">Processing: 0%</span>
+      <span id="timeRemaining">Estimated time: calculating...</span>
+    </div>
+    <div id="progressBar">
+      <div id="progress"></div>
+    </div>
+  </div>
+
+  <div class="btn-group">
+    <button id="traceBtn" class="btn" disabled>
+      <i class="fas fa-magic"></i> Convert to SVG
+    </button>
+    <button id="downloadBtn" class="btn" disabled>
+      <i class="fas fa-download"></i> Download SVG
+    </button>
+    <button id="colorBtn" class="btn" disabled>
+      <i class="fas fa-fill-drip"></i> Apply Color
+    </button>
+    <input type="color" id="colorPicker" value="#000000">
+  </div>
+
+  <div id="status" class="info">
+    <i class="fas fa-info-circle status-icon"></i>
+    <span id="statusText">Please upload an image to begin conversion</span>
+  </div>
+
+  <div class="preview-container">
+    <div class="preview-box">
+      <div class="preview-title">
+        <i class="fas fa-image"></i> Original Image
+      </div>
+      <div id="originalContainer">
+        <p style="color: var(--gray);">No image uploaded</p>
+      </div>
+    </div>
+    <div class="preview-box">
+      <div class="preview-title">
+        <i class="fas fa-project-diagram"></i> Vector Result
+      </div>
+      <div id="svgContainer">
+        <p style="color: var(--gray);">SVG will appear here</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// DOM Elements
+const fileInput = document.getElementById('fileInput');
+const uploadArea = document.getElementById('uploadArea');
+const traceBtn = document.getElementById('traceBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const colorBtn = document.getElementById('colorBtn');
+const colorPicker = document.getElementById('colorPicker');
+const statusDiv = document.getElementById('status');
+const statusText = document.getElementById('statusText');
+const originalContainer = document.getElementById('originalContainer');
+const svgContainer = document.getElementById('svgContainer');
+const progressContainer = document.getElementById('progress-container');
+const progressBar = document.getElementById('progress');
+const progressText = document.getElementById('progressText');
+const timeRemaining = document.getElementById('timeRemaining');
+
+// Options controls
+const colorsInput = document.getElementById('colors');
+const smoothnessInput = document.getElementById('smoothness');
+const detailInput = document.getElementById('detail');
+const colorsValue = document.getElementById('colorsValue');
+const smoothnessValue = document.getElementById('smoothnessValue');
+const detailValue = document.getElementById('detailValue');
+
+// State variables
+let originalImage = null;
+let svgElement = null;
+let selectedPath = null;
+let startTime = null;
+let progressInterval;
+
+// Initialize
+updateOptionValues();
+
+// Event listeners
+uploadArea.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', handleFileUpload);
+colorsInput.addEventListener('input', updateOptionValues);
+smoothnessInput.addEventListener('input', updateOptionValues);
+detailInput.addEventListener('input', updateOptionValues);
+traceBtn.addEventListener('click', convertToSVG);
+downloadBtn.addEventListener('click', downloadSVG);
+colorBtn.addEventListener('click', changeColor);
+
+function updateOptionValues() {
+  colorsValue.textContent = colorsInput.value;
+  smoothnessValue.textContent = smoothnessInput.value;
+  detailValue.textContent = detailInput.value;
+}
+
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  if (!file.type.match('image.*')) {
+    showStatus('Please upload an image file (JPEG, PNG, etc.)', 'error');
+    return;
+  }
+
+  showStatus('Loading image...', 'info');
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    originalImage = e.target.result;
+    showOriginalImage(originalImage);
+    traceBtn.disabled = false;
+    downloadBtn.disabled = true;
+    colorBtn.disabled = true;
+    showStatus('Image loaded. Adjust settings and click "Convert to SVG"', 'success');
+  };
+  reader.onerror = () => {
+    showStatus('Error loading image file', 'error');
+  };
+  reader.readAsDataURL(file);
+}
+
+function showOriginalImage(imageData) {
+  originalContainer.innerHTML = `
+    <img src="${imageData}" style="max-width:100%; max-height:400px; border-radius:4px;">
+  `;
+}
+
+function convertToSVG() {
+  if (!originalImage) return;
+
+  showStatus('Starting conversion process...', 'info');
+  traceBtn.disabled = true;
+  traceBtn.innerHTML = '<span class="spinner"></span> Processing...';
+  downloadBtn.disabled = true;
+  colorBtn.disabled = true;
+  
+  progressContainer.style.display = 'block';
+  startTime = new Date();
+  startProgress();
+
+  const options = {
+    numberofcolors: parseInt(colorsInput.value),
+    scale: parseFloat(smoothnessInput.value),
+    pathomit: 0,
+    ltres: 1,
+    qtres: parseFloat(detailInput.value) / 10,
+    linefilter: true,
+    rightangleenhance: true,
+    colorsampling: 2,
+    blurradius: 0,
+    blurdelta: 50,
+    viewbox: true,
+    desc: true,
+    roundcoords: 1
+  };
+
+  if (typeof ImageTracer === 'undefined') {
+    loadScript('https://unpkg.com/imagetracerjs@1.2.6/imagetracer_v1.2.6.js', function() {
+      performTracing(options);
+    });
+  } else {
+    performTracing(options);
+  }
+}
+
+function performTracing(options) {
+  try {
+    ImageTracer.imageToSVG(
+      originalImage,
+      function(svgStr) {
+        svgStr = svgStr.replace(/<!--.*?-->/g, '');
+        
+        const meta = `
+          <metadata>
+            <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                     xmlns:dc="http://purl.org/dc/elements/1.1/"
+                     xmlns:cc="http://creativecommons.org/ns#">
+              <cc:Work rdf:about="">
+                <dc:format>image/svg+xml</dc:format>
+                <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+              </cc:Work>
+            </rdf:RDF>
+          </metadata>
+        `;
+        
+        svgStr = svgStr.replace(/<svg/, `<svg ${meta}`);
+        
+        svgContainer.innerHTML = svgStr;
+        svgElement = svgContainer.querySelector('svg');
+        
+        if (!svgElement) {
+          throw new Error('SVG generation failed');
+        }
+        
+        prepareSVGForEditing();
+        
+        completeProgress();
+        showStatus('Conversion successful! Ready to download.', 'success');
+        downloadBtn.disabled = false;
+        colorBtn.disabled = false;
+        traceBtn.disabled = false;
+        traceBtn.innerHTML = '<i class="fas fa-magic"></i> Convert to SVG';
+      },
+      options
+    );
+  } catch (error) {
+    showStatus(`Conversion failed: ${error.message}`, 'error');
+    traceBtn.disabled = false;
+    traceBtn.innerHTML = '<i class="fas fa-magic"></i> Convert to SVG';
+    resetProgress();
+  }
+}
+
+function prepareSVGForEditing() {
+  const paths = svgElement.querySelectorAll('path');
+  paths.forEach(path => {
+    path.style.cursor = 'pointer';
+    path.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (selectedPath) {
+        selectedPath.style.outline = 'none';
+      }
+      selectedPath = path;
+      path.style.outline = '2px solid var(--primary)';
+    });
+  });
+  
+  svgElement.addEventListener('click', function(e) {
+    if (e.target === svgElement && selectedPath) {
+      selectedPath.style.outline = 'none';
+      selectedPath = null;
+    }
+  });
+}
+
+function changeColor() {
+  if (!selectedPath) {
+    showStatus('Please select a path by clicking on it first', 'error');
+    return;
+  }
+  
+  selectedPath.setAttribute('fill', colorPicker.value);
+  selectedPath.removeAttribute('stroke');
+  showStatus('Color changed successfully', 'success');
+}
+
+function downloadSVG() {
+  if (!svgElement) {
+    showStatus('No SVG to download', 'error');
+    return;
+  }
+
+  try {
+    const ns = "http://www.w3.org/2000/svg";
+    const tempSvg = document.createElementNS(ns, "svg");
+    
+    Array.from(svgElement.attributes).forEach(attr => {
+      if (attr.name !== 'style' && attr.name !== 'class') {
+        tempSvg.setAttribute(attr.name, attr.value);
+      }
+    });
+
+    const metadata = document.createElementNS(ns, "metadata");
+    metadata.innerHTML = `
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:dc="http://purl.org/dc/elements/1.1/"
+               xmlns:cc="http://creativecommons.org/ns#">
+        <cc:Work rdf:about="">
+          <dc:format>image/svg+xml</dc:format>
+          <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+        </cc:Work>
+      </rdf:RDF>`;
+    tempSvg.appendChild(metadata);
+
+    svgElement.querySelectorAll('path').forEach(path => {
+      const newPath = document.createElementNS(ns, "path");
+      Array.from(path.attributes).forEach(attr => {
+        if (attr.name !== 'style' && attr.name !== 'class') {
+          newPath.setAttribute(attr.name, attr.value);
+        }
+      });
+      tempSvg.appendChild(newPath);
+    });
+
+    let svgStr = new XMLSerializer().serializeToString(tempSvg);
+
+    svgStr = svgStr.replace(/&/g, '&amp;')
+                   .replace(/</g, '&lt;')
+                   .replace(/>/g, '&gt;')
+                   .replace(/"/g, '&quot;')
+                   .replace(/'/g, '&apos;');
+
+    svgStr = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+${svgStr}`;
+
+    const blob = new Blob([svgStr], {type: 'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    
+    const file = fileInput.files[0];
+    let filename = 'converted_vector.svg';
+    if (file && file.name) {
+      filename = file.name.replace(/\.[^/.]+$/, '') + '_vector.svg';
+    }
+    a.download = filename;
+    
+    document.body.appendChild(a);
+    a.click();
+    
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+
+    showStatus('SVG downloaded successfully!', 'success');
+  } catch (error) {
+    showStatus(`Download failed: ${error.message}`, 'error');
+    console.error('Download error:', error);
+  }
+}
+
+function showStatus(message, type) {
+  statusText.textContent = message;
+  statusDiv.className = type;
+  
+  const icon = statusDiv.querySelector('.status-icon');
+  if (type === 'error') {
+    icon.className = 'fas fa-exclamation-circle status-icon';
+  } else if (type === 'success') {
+    icon.className = 'fas fa-check-circle status-icon';
+  } else {
+    icon.className = 'fas fa-info-circle status-icon';
+  }
+}
+
+function startProgress() {
+  let progress = 0;
+  progressBar.style.width = '0%';
+  progressText.textContent = 'Processing: 0%';
+  
+  if (progressInterval) clearInterval(progressInterval);
+  
+  progressInterval = setInterval(() => {
+    progress += Math.random() * 5;
+    
+    if (progress >= 95) progress = 95;
+    
+    progressBar.style.width = `${progress}%`;
+    progressText.textContent = `Processing: ${Math.round(progress)}%`;
+    
+    if (startTime) {
+      const elapsed = (new Date() - startTime) / 1000;
+      const remaining = (elapsed / progress) * (100 - progress);
+      timeRemaining.textContent = `Estimated time: ${formatTime(remaining)}`;
+    }
+  }, 500);
+}
+
+function completeProgress() {
+  clearInterval(progressInterval);
+  progressBar.style.width = '100%';
+  progressText.textContent = 'Processing: 100%';
+  timeRemaining.textContent = 'Completed!';
+  
+  setTimeout(() => {
+    progressContainer.style.display = 'none';
+  }, 2000);
+}
+
+function resetProgress() {
+  clearInterval(progressInterval);
+  progressContainer.style.display = 'none';
+  progressBar.style.width = '0%';
+  progressText.textContent = 'Processing: 0%';
+}
+
+function formatTime(seconds) {
+  if (seconds < 60) {
+    return `${Math.round(seconds)} seconds`;
+  } else {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    return `${mins}m ${secs}s`;
+  }
+}
+
+function loadScript(url, callback) {
+  const script = document.createElement('script');
+  script.src = url;
+  script.onload = callback;
+  script.onerror = function() {
+    showStatus('Failed to load converter library', 'error');
+    traceBtn.disabled = false;
+    traceBtn.innerHTML = '<i class="fas fa-magic"></i> Convert to SVG';
+  };
+  document.head.appendChild(script);
+}
+</script>
+</body>
+</html>    display: inline-block;
+    width: 50px;
+    text-align: center;
+    background: #e9ecef;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-left: 10px;
+    font-size: 14px;
+  }
+
+  .btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 25px;
+  }
+
+  .btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn:hover {
+    background: var(--secondary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .btn:disabled {
+    background: #adb5bd;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn i {
+    font-size: 18px;
+  }
+
+  .preview-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 25px;
+    margin-top: 30px;
+  }
+
+  .preview-box {
+    border: 1px solid #dee2e6;
+    padding: 20px;
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  }
+
+  .preview-title {
+    font-weight: 600;
+    margin-bottom: 15px;
+    text-align: center;
+    color: var(--primary);
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  #originalContainer, #svgContainer {
+    min-height: 350px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  #progress-container {
+    margin: 20px 0;
+    display: none;
+  }
+
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--gray);
+  }
+
+  #progressBar {
+    height: 12px;
+    background: #e9ecef;
+    width: 100%;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  #progress {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--success));
+    width: 0%;
+    transition: width 0.3s;
+    border-radius: 6px;
+  }
+
+  #status {
+    padding: 15px;
+    border-radius: 6px;
+    margin-top: 20px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .status-icon {
+    font-size: 20px;
+  }
+
+  .success {
+    background: #e6f7ee;
+    color: #0a5c36;
+    border-left: 4px solid #0a5c36;
+  }
+
+  .error {
+    background: #fde8e8;
+    color: #9b1c1c;
+    border-left: 4px solid #9b1c1c;
+  }
+
+  .info {
+    background: #e7f5fe;
+    color: #1a4e8a;
+    border-left: 4px solid #1a4e8a;
+  }
+
+  #colorPicker {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
   /* Responsive adjustments */
   @media (max-width: 768px) {
     .container {
