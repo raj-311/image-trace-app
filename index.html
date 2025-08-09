@@ -712,6 +712,41 @@ function loadScript(url, callback) {
   };
   document.head.appendChild(script);
 }
+  function downloadSVG() {
+  if (!svgElement) return;
+  
+  // Clone SVG to avoid modifying the displayed version
+  const clone = svgElement.cloneNode(true);
+  
+  // Remove selection outlines and any invalid attributes
+  clone.querySelectorAll('path').forEach(path => {
+    path.style.outline = 'none';
+    path.removeAttribute('style'); // Remove any inline style that might cause issues
+  });
+
+  // Ensure valid XML structure
+  let svgStr = new XMLSerializer().serializeToString(clone);
+  
+  // Fix common XML errors
+  svgStr = svgStr.replace(/&/g, '&amp;'); // Escape ampersands
+  svgStr = svgStr.replace(/</g, '&lt;');   // Escape less-than signs
+  svgStr = svgStr.replace(/>/g, '&gt;');   // Escape greater-than signs
+  
+  // Add proper XML declaration and DOCTYPE
+  svgStr = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+${svgStr}`;
+
+  const blob = new Blob([svgStr], {type: 'image/svg+xml;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = getDownloadName();
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  }
 </script>
 </body>
 </html>
