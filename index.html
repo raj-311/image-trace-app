@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Image Trace Demo</title>
+<title>Simple Image Trace</title>
 <style>
   body { font-family: Arial, sans-serif; padding: 1rem; max-width: 600px; margin: auto; }
   #inputPreview, #svgOutput { border: 1px solid #ccc; height: 200px; margin-top: 1rem; display: flex; justify-content: center; align-items: center; }
@@ -25,12 +25,20 @@
 
     input.addEventListener('change', e => {
       const file = e.target.files[0];
-      if (!file || !file.type.startsWith('image/')) return;
+      if (!file || !file.type.startsWith('image/')) {
+        alert('Please upload an image file.');
+        return;
+      }
 
       const reader = new FileReader();
       reader.onload = function(evt) {
         const imgSrc = evt.target.result;
         inputPreview.innerHTML = `<img src="${imgSrc}" style="max-width:100%; max-height:100%;">`;
+
+        if(typeof ImageTracer === 'undefined') {
+          alert('ImageTracer library failed to load.');
+          return;
+        }
 
         ImageTracer.imageToSVG(imgSrc, function(svgstr) {
           svgOutput.innerHTML = svgstr;
