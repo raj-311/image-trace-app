@@ -592,6 +592,8 @@ function changeColor() {
     showStatus('Color changed successfully', 'success');
 }
 
+    
+
 function downloadSVG() {
     if (!svgElement) {
         showStatus('No SVG to download', 'error');
@@ -599,20 +601,29 @@ function downloadSVG() {
     }
 
     try {
+        // Clone the original SVG element to avoid modifying the displayed one
+        const svgClone = svgElement.cloneNode(true);
+        
+        // Create a new SVG element with proper namespace
         const ns = "http://www.w3.org/2000/svg";
         const tempSvg = document.createElementNS(ns, "svg");
         
-        // Copy only valid attributes
-        const validAttributes = ['width', 'height', 'viewBox', 'xmlns', 'version'];
-        Array.from(svgElement.attributes).forEach(attr => {
-            if (validAttributes.includes(attr.name)) {
-                tempSvg.setAttribute(attr.name, attr.value);
+        // Copy attributes from the original SVG
+        const attributes = ['width', 'height', 'viewBox', 'xmlns', 'version'];
+        attributes.forEach(attr => {
+            if (svgClone.hasAttribute(attr)) {
+                tempSvg.setAttribute(attr, svgClone.getAttribute(attr));
             }
         });
-
-        // Create and append metadata correctly
+        
+        // Set default xmlns if not present
+        if (!tempSvg.hasAttribute('xmlns')) {
+            tempSvg.setAttribute('xmlns', ns);
+        }
+        
+        // Add metadata
         const metadata = document.createElementNS(ns, "metadata");
-        const rdf = `
+        metadata.innerHTML = `
             <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
                     xmlns:dc="http://purl.org/dc/elements/1.1/"
                     xmlns:cc="http://creativecommons.org/ns#">
@@ -621,48 +632,34 @@ function downloadSVG() {
                     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
                 </cc:Work>
             </rdf:RDF>`;
-        
-        metadata.innerHTML = rdf;
         tempSvg.appendChild(metadata);
-
-        // Copy paths with only necessary attributes
-        svgElement.querySelectorAll('path').forEach(path => {
-            const newPath = document.createElementNS(ns, "path");
-            const pathAttributes = ['d', 'fill', 'stroke', 'stroke-width'];
-            Array.from(path.attributes).forEach(attr => {
-                if (pathAttributes.includes(attr.name)) {
-                    newPath.setAttribute(attr.name, attr.value);
-                }
-            });
-            tempSvg.appendChild(newPath);
-        });
-
-        // Serialize and fix XML issues
-        let svgStr = new XMLSerializer().serializeToString(tempSvg);
         
-        // Proper XML encoding
-        svgStr = svgStr.replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;');
-
-        // Add XML declaration and DOCTYPE
-        svgStr = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-${svgStr}`;
-
-        // Create download
+        // Copy all child nodes (paths) from the original SVG
+        while (svgClone.firstChild) {
+            tempSvg.appendChild(svgClone.firstChild);
+        }
+        
+        // Create SVG string
+        const serializer = new XMLSerializer();
+        let svgStr = serializer.serializeToString(tempSvg);
+        
+        // Add XML declaration
+        svgStr = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + svgStr;
+        
+        // Create download link
         const blob = new Blob([svgStr], {type: 'image/svg+xml;charset=utf-8'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         
-        // Set filename based on original image
+        // Set filename
         const file = fileInput.files[0];
         const filename = file ? 
             `${file.name.replace(/\.[^/.]+$/, '')}_vector.svg` : 
             'converted_vector.svg';
         a.download = filename;
         
+        // Trigger download
         document.body.appendChild(a);
         a.click();
         
@@ -679,6 +676,7 @@ ${svgStr}`;
     }
 }
 
+    
 function showStatus(message, type) {
     statusText.textContent = message;
     statusDiv.className = type;
