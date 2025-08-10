@@ -461,6 +461,7 @@ function showOriginalImage(imageData) {
     `;
 }
 
+    
 function convertToSVG() {
     if (!originalImage) return;
 
@@ -477,22 +478,22 @@ function convertToSVG() {
     const options = {
         numberofcolors: parseInt(colorsInput.value),
         scale: parseFloat(smoothnessInput.value),
-        pathomit: 0,
-        ltres: 1,
-        qtres: parseFloat(detailInput.value) / 10,
-        linefilter: true,
-        rightangleenhance: true,
-        colorsampling: 2,
-        blurradius: 0,
-        blurdelta: 50,
-        viewbox: true,
-        desc: true,
-        roundcoords: 1,
-        callback: function(progress) {
-            // This callback doesn't work in current ImageTracer version
-            // We'll use our simulated progress instead
-        }
+        pathomit: 8,              // ছোট পাথগুলি বাদ দেয় (স্মুথনেস বাড়ায়)
+        ltres: 0.5,               // লাইন ফিটিং টলারেন্স (কম মান = বেশি স্মুথ)
+        qtres: parseFloat(detailInput.value) / 20,  // বেস্প্লাইন টলারেন্স (কম মান = বেশি স্মুথ)
+        linefilter: true,         // স্ট্রেইট লাইন ডিটেকশন সক্ষম করুন
+        rightangleenhance: true,  // সমকোণ উন্নত করুন
+        colorsampling: 2,         // রঙ স্যাম্পলিং পদ্ধতি (2 = ভালো ফলাফল)
+        blurradius: 0,            // ব্লার রেডিয়াস (যদি ইমেজ নয়েজি হয়)
+        blurdelta: 50,            // ব্লার ডেল্টা
+        viewbox: true,            // ভিউবক্স সংরক্ষণ করুন
+        desc: true,              // ডেস্ক্রিপশন ট্যাগ যোগ করুন
+        roundcoords: 1            // কোঅর্ডিনেটগুলি রাউন্ড করুন (পূর্ণসংখ্যা)
     };
+
+
+    
+        
 
     if (typeof ImageTracer === 'undefined') {
         const script = document.createElement('script');
